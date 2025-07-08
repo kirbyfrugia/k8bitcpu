@@ -1,7 +1,40 @@
+# This file is used to build two control ROMs for the 8-bit CPU from Ben Eater's design,
+# with some modifications.
+
+# The CPU has a program counter, memory address register, instruction register, A/B registers, an ALU, and RAM.
+
+# The ROMs are used to control the CPU's operations by setting control bits in two 8-bit control
+# words for each instruction and step. Each clock tick increments the step counter. There are 5 steps per instruction.
+
+# A typical instruction cycle consists of the following steps:
+# Step 1 - Put the current value of the program counter onto the bus, load it into the memory address register (MAR).
+# Step 2 - Take whatever is stored in RAM at the address in the MAR and load it into the instruction register. Increment the program counter.
+# Steps 3-5 - Steps specific to the operation being performed, e.g. ADD or LDA.
+# Goto step 1 to fetch the next instruction.
+
+# The instruction register is an 8-bit register.
+# The 4 most significant bits (msb) are the opcode, and the 4 least significant bits (lsb) are the operand.
+# When outputting the instruction register, it only outputs the 4 lsb.
+
+# The operand usually contains the address of the data to be operated on, or a value to be used in the operation.
+# For example, the operand for the LDA instruction is the address of the data to be loaded into the A register.
+# For the LDI opcode, the operand is the value to be loaded into the A register directly.
+
+# The opcode is fed from the instruction register into the control ROMs and ORed with the current step to form the address for the control ROMs.
+# Format:
+#   0XXXXYYY where bit 7 isn't used, XXXX is the opcode, and YYY is the step.
+# So for example, step 0 of all instructions is to load the memory address register (MAR) with the current program counter (PC) value.
+# The ROM address for step 0 for LDA would be:
+#   0 0001 000
+#   Bit 7 is 0 (not used)
+#   Bits 6-3 are the opcode for the instruction, LDA, which is 0001
+#   Bits 2-0 are the step number, which is 000 for the first step
+
+
 lt_rom_data = bytearray(2048)
 rt_rom_data = bytearray(2048)
 
-# Control bits for the instruction ROM, left side:
+# Control bits for the control words ROM, left side:
 # HLT MI RI RO IO II AI AO
 HL = 0b10000000  # Halt the CPU
 MI = 0b01000000  # Load memory address register
@@ -12,7 +45,7 @@ II = 0b00000100  # Instruction Register Input
 AI = 0b00000010  # A Register Input
 AO = 0b00000001  # A Register Output
 
-# Control bits for the instruction ROM, right side:
+# Control bits for the control words ROM, right side:
 # EO SU BI OI CE CO J FL
 EO = 0b10000000  # Sum output
 SU = 0b01000000  # Subtraction flag
@@ -25,23 +58,15 @@ FL = 0b00000001  # Flag
 
 NIL = 0b00000000  # No control bits set
 
-# Instructions:
-# format of an instruction
-# 0xxxxyyy - where xxxx is the opcode and yy is the step (micro-instruction)
-# Instructions have micro-instructions that are executed in steps.
-# Each micro-instruction sets up to 16 control bits. The 8 msb control bits
-# are stored in the left side ROM, and the 8 lsb control bits are stored in the right side ROM.
 
-# Instructions
-# Format is 0bAAAAxxx where AAAA is the opcode and xxx is the step.
-# The step is used to determine which micro-instruction to execute.
+# Opcodes for the CPU instructions
 NOP  = 0b00000000  # No operation
 LDA  = 0b00001000  # Loads an address from memory into the memory address register (MAR)
 ADD  = 0b00010000  # Adds a value from memory to the value in the A register
-OP3  = 0b00011000  # Placeholder for a third operation
-OP4  = 0b00100000  # Placeholder for a fourth operation
-OP5  = 0b00101000  # Placeholder for a fifth operation
-OP6  = 0b00110000  # Placeholder for a sixth operation
+SUB  = 0b00011000  # Sutracts a value from memory from the value in the A register
+STA  = 0b00100000  # Stores the value in the A register into memory
+LDI  = 0b00101000  # Loads an immediate 4-bit value into the A register
+JMP  = 0b00110000  # Jumps to the address in the program counter
 OP7  = 0b00111000  # Placeholder for a seventh operation
 OP8  = 0b01000000  # Placeholder for an eighth operation
 OP9  = 0b01001000  # Placeholder for a ninth operation, not used
@@ -59,10 +84,6 @@ STEP2 = 0b00000010  # Third step of an instruction
 STEP3 = 0b00000011  # Fourth step of an instruction
 STEP4 = 0b00000100  # Fifth step of an instruction
 
-# The first two steps of all instructions is a fetch.
-# Step 1 - Load the program counter into the memory address register (MAR)
-# Step 2 - Load the instruction register (IR) with the value at the address in the MAR. Increment program counter by 1.
-
 # NOP instruction
 lt_rom_data[NOP | STEP0] = MI      ; rt_rom_data[NOP | STEP0] = CO
 lt_rom_data[NOP | STEP1] = RO | II ; rt_rom_data[NOP | STEP1] = CE
@@ -73,45 +94,45 @@ lt_rom_data[NOP | STEP4] = NIL     ; rt_rom_data[NOP | STEP4] = NIL
 # LDA instruction
 lt_rom_data[LDA | STEP0] = MI      ; rt_rom_data[LDA | STEP0] = CO
 lt_rom_data[LDA | STEP1] = RO | II ; rt_rom_data[LDA | STEP1] = CE
-lt_rom_data[LDA | STEP2] = MI | IO ; rt_rom_data[LDA | STEP2] = NIL
-lt_rom_data[LDA | STEP3] = RO | AI ; rt_rom_data[LDA | STEP3] = NIL
+lt_rom_data[LDA | STEP2] = MI | IO ; rt_rom_data[LDA | STEP2] = NIL # Put the instruction address onto the bus and load it into the MAR (4 lsb)
+lt_rom_data[LDA | STEP3] = RO | AI ; rt_rom_data[LDA | STEP3] = NIL # Output the RAM value onto the bus, load it into the A register
 lt_rom_data[LDA | STEP4] = NIL     ; rt_rom_data[LDA | STEP4] = NIL
 
 
 # ADD instruction
 lt_rom_data[ADD | STEP0] = MI      ; rt_rom_data[ADD | STEP0] = CO
 lt_rom_data[ADD | STEP1] = RO | II ; rt_rom_data[ADD | STEP1] = CE
-lt_rom_data[ADD | STEP2] = MI | IO ; rt_rom_data[ADD | STEP2] = NIL
-lt_rom_data[ADD | STEP3] = RO      ; rt_rom_data[ADD | STEP3] = BI
-lt_rom_data[ADD | STEP4] = AI      ; rt_rom_data[ADD | STEP4] = EO
+lt_rom_data[ADD | STEP2] = MI | IO ; rt_rom_data[ADD | STEP2] = NIL # Put the instruction address onto the bus and load it into the MAR
+lt_rom_data[ADD | STEP3] = RO      ; rt_rom_data[ADD | STEP3] = BI  # Load the B register with the value at the address in the instruction register
+lt_rom_data[ADD | STEP4] = AI      ; rt_rom_data[ADD | STEP4] = EO  # Output the sum of the A and B registers to the bus, load it into the A register
 
-# OP3 instruction
-lt_rom_data[OP3 | STEP0] = MI      ; rt_rom_data[OP3 | STEP0] = CO
-lt_rom_data[OP3 | STEP1] = RO | II ; rt_rom_data[OP3 | STEP1] = CE
-lt_rom_data[OP3 | STEP2] = NIL     ; rt_rom_data[OP3 | STEP2] = NIL
-lt_rom_data[OP3 | STEP3] = NIL     ; rt_rom_data[OP3 | STEP3] = NIL
-lt_rom_data[OP3 | STEP4] = NIL     ; rt_rom_data[OP3 | STEP4] = NIL
+# SUB instruction
+lt_rom_data[SUB | STEP0] = MI      ; rt_rom_data[SUB | STEP0] = CO
+lt_rom_data[SUB | STEP1] = RO | II ; rt_rom_data[SUB | STEP1] = CE
+lt_rom_data[SUB | STEP2] = MI | IO ; rt_rom_data[SUB | STEP2] = NIL     # Load the instruction register with the address to subtract
+lt_rom_data[SUB | STEP3] = RO      ; rt_rom_data[SUB | STEP3] = BI      # Put the RAM value onto the bus, load B register
+lt_rom_data[SUB | STEP4] = AI      ; rt_rom_data[SUB | STEP4] = EO | SU # Output the difference of the A and B registers to the bus, load it into the A register
 
-# OP4 instruction
-lt_rom_data[OP4 | STEP0] = MI      ; rt_rom_data[OP4 | STEP0] = CO
-lt_rom_data[OP4 | STEP1] = RO | II ; rt_rom_data[OP4 | STEP1] = CE
-lt_rom_data[OP4 | STEP2] = NIL     ; rt_rom_data[OP4 | STEP2] = NIL
-lt_rom_data[OP4 | STEP3] = NIL     ; rt_rom_data[OP4 | STEP3] = NIL
-lt_rom_data[OP4 | STEP4] = NIL     ; rt_rom_data[OP4 | STEP4] = NIL
+# STA instruction
+lt_rom_data[STA | STEP0] = MI      ; rt_rom_data[STA | STEP0] = CO
+lt_rom_data[STA | STEP1] = RO | II ; rt_rom_data[STA | STEP1] = CE
+lt_rom_data[STA | STEP2] = IO | MI ; rt_rom_data[STA | STEP2] = NIL # Load the instruction register with the address to store (4 lsb)
+lt_rom_data[STA | STEP3] = AO | RI ; rt_rom_data[STA | STEP3] = NIL
+lt_rom_data[STA | STEP4] = NIL     ; rt_rom_data[STA | STEP4] = NIL
 
-# OP5 instruction
-lt_rom_data[OP5 | STEP0] = MI      ; rt_rom_data[OP5 | STEP0] = CO
-lt_rom_data[OP5 | STEP1] = RO | II ; rt_rom_data[OP5 | STEP1] = CE
-lt_rom_data[OP5 | STEP2] = NIL     ; rt_rom_data[OP5 | STEP2] = NIL
-lt_rom_data[OP5 | STEP3] = NIL     ; rt_rom_data[OP5 | STEP3] = NIL
-lt_rom_data[OP5 | STEP4] = NIL     ; rt_rom_data[OP5 | STEP4] = NIL
+# LDI instruction
+lt_rom_data[LDI | STEP0] = MI      ; rt_rom_data[LDI | STEP0] = CO
+lt_rom_data[LDI | STEP1] = RO | II ; rt_rom_data[LDI | STEP1] = CE
+lt_rom_data[LDI | STEP2] = IO | AI ; rt_rom_data[LDI | STEP2] = NIL # Load the A register with the 4 lsb of the instruction register (immediate value)
+lt_rom_data[LDI | STEP3] = NIL     ; rt_rom_data[LDI | STEP3] = NIL
+lt_rom_data[LDI | STEP4] = NIL     ; rt_rom_data[LDI | STEP4] = NIL
 
-# OP6 instruction
-lt_rom_data[OP6 | STEP0] = MI      ; rt_rom_data[OP6 | STEP0] = CO
-lt_rom_data[OP6 | STEP1] = RO | II ; rt_rom_data[OP6 | STEP1] = CE
-lt_rom_data[OP6 | STEP2] = NIL     ; rt_rom_data[OP6 | STEP2] = NIL
-lt_rom_data[OP6 | STEP3] = NIL     ; rt_rom_data[OP6 | STEP3] = NIL
-lt_rom_data[OP6 | STEP4] = NIL     ; rt_rom_data[OP6 | STEP4] = NIL
+# JMP instruction
+lt_rom_data[JMP | STEP0] = MI      ; rt_rom_data[JMP | STEP0] = CO
+lt_rom_data[JMP | STEP1] = RO | II ; rt_rom_data[JMP | STEP1] = CE
+lt_rom_data[JMP | STEP2] = IO      ; rt_rom_data[JMP | STEP2] = J
+lt_rom_data[JMP | STEP3] = NIL     ; rt_rom_data[JMP | STEP3] = NIL
+lt_rom_data[JMP | STEP4] = NIL     ; rt_rom_data[JMP | STEP4] = NIL
 
 # OP7 instruction
 lt_rom_data[OP7 | STEP0] = MI      ; rt_rom_data[OP7 | STEP0] = CO
@@ -177,8 +198,8 @@ lt_rom_data[HLT | STEP3] = NIL     ; rt_rom_data[HLT | STEP3] = NIL
 lt_rom_data[HLT | STEP4] = NIL     ; rt_rom_data[HLT | STEP4] = NIL
 
 # Write rom files
-with open("left-instruction-rom.bin", "wb") as f:
+with open("control-words-rom-left.bin", "wb") as f:
   f.write(lt_rom_data)
   
-with open("right-instruction-rom.bin", "wb") as f:
+with open("control-words-rom-right.bin", "wb") as f:
   f.write(rt_rom_data)
