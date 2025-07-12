@@ -1,3 +1,7 @@
+import pprint
+import copy
+import csv
+
 # This file is used to build two control ROMs for the 8-bit CPU from Ben Eater's design,
 # with some modifications.
 
@@ -25,181 +29,146 @@
 #   0XXXXYYY where bit 7 isn't used, XXXX is the opcode, and YYY is the step.
 # So for example, step 0 of all instructions is to load the memory address register (MAR) with the current program counter (PC) value.
 # The ROM address for step 0 for LDA would be:
-#   0 0001 000
-#   Bit 7 is 0 (not used)
+#   00 0 0001 000
+#   Bit 9 is the zero flag
+#   Bit 8 is the carry flag
+#   Bit 7 is Byte Select (BS), hard-wired to 0 for msb control words rom, 1 for lsb control word rom
 #   Bits 6-3 are the opcode for the instruction, LDA, which is 0001
 #   Bits 2-0 are the step number, which is 000 for the first step
 
 
-lt_rom_data = bytearray(2048)
-rt_rom_data = bytearray(2048)
-
 # Control bits for the control words ROM, left side:
 # HLT MI RI RO IO II AI AO
-HL = 0b10000000  # Halt the CPU
-MI = 0b01000000  # Load memory address register
-RI = 0b00100000  # RAM Input
-RO = 0b00010000  # RAM Output
-IO = 0b00001000  # Instruction Register Output
-II = 0b00000100  # Instruction Register Input
-AI = 0b00000010  # A Register Input
-AO = 0b00000001  # A Register Output
+HL = 0b1000000000000000  # Halt the CPU
+MI = 0b0100000000000000  # Load memory address register
+RI = 0b0010000000000000  # RAM Input
+RO = 0b0001000000000000  # RAM Output
+IO = 0b0000100000000000  # Instruction Register Output
+II = 0b0000010000000000  # Instruction Register Input
+AI = 0b0000001000000000  # A Register Input
+AO = 0b0000000100000000  # A Register Output
 
 # Control bits for the control words ROM, right side:
 # EO SU BI OI CE CO J FL
-EO = 0b10000000  # Sum output
-SU = 0b01000000  # Subtraction flag
-BI = 0b00100000  # Register B Input
-OI = 0b00010000  # Output to decimal display
-CE = 0b00001000  # Resets the program counter
-CO = 0b00000100  # Program counter output
-J  = 0b00000010  # Jump
-FL = 0b00000001  # Flag
+EO = 0b0000000010000000  # Sum output
+SU = 0b0000000001000000  # Subtraction flag
+BI = 0b0000000000100000  # Register B Input
+OI = 0b0000000000010000  # Output to decimal display
+CE = 0b0000000000001000  # Resets the program counter
+CO = 0b0000000000000100  # Program counter output
+J  = 0b0000000000000010  # Jump
+FI = 0b0000000000000001  # Flag Input
 
-NIL = 0b00000000  # No control bits set
+FLAGS_Z0C0 = 0b00
+FLAGS_Z0C1 = 0b01
+FLAGS_Z1C0 = 0b10
+FLAGS_Z1C1 = 0b11
 
+JCS = 0b00000111 # Jump if carry set (carry flag set)
+JEQ = 0b00001000 # Jump if equal (zero flag set)
 
-# Opcodes for the CPU instructions
-NOP  = 0b00000000  # No operation
-LDA  = 0b00001000  # Loads an address from memory into the memory address register (MAR)
-ADD  = 0b00010000  # Adds a value from memory to the value in the A register
-SUB  = 0b00011000  # Sutracts a value from memory from the value in the A register
-STA  = 0b00100000  # Stores the value in the A register into memory
-LDI  = 0b00101000  # Loads an immediate 4-bit value into the A register
-JMP  = 0b00110000  # Jumps to the address in the program counter
-OP7  = 0b00111000  # Placeholder for a seventh operation
-OP8  = 0b01000000  # Placeholder for an eighth operation
-OP9  = 0b01001000  # Placeholder for a ninth operation, not used
-OP10 = 0b01010000  # Placeholder for a tenth operation
-OP11 = 0b01011000  # Placeholder for an eleventh operation
-OP12 = 0b01100000  # Placeholder for a twelfth operation
-OP13 = 0b01101000  # Placeholder for a thirteenth operation
-OUT  = 0b01110000  # Outputs the value in the A register to decimal display
-HLT  = 0b01111000  # Halts the CPU
+# Note: this differs from Ben Eater's design and sets the flags on the
+# inverse clock to deal with a timing issue.
 
-# Steps
-STEP0 = 0b00000000  # First step of an instruction
-STEP1 = 0b00000001  # Second step of an instruction
-STEP2 = 0b00000010  # Third step of an instruction
-STEP3 = 0b00000011  # Fourth step of an instruction
-STEP4 = 0b00000100  # Fifth step of an instruction
+instructions = [
+  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 0000 - NOP
+  [MI|CO, RO|II|CE, MI|IO, RO|AI,       0,        0, 0, 0], # 0001 - LDA
+  [MI|CO, RO|II|CE, MI|IO, RO|BI|FI,    AI|EO,    0, 0, 0], # 0010 - ADD
+  [MI|CO, RO|II|CE, MI|IO, RO|BI|SU|FI, AI|EO|SU, 0, 0, 0], # 0011 - SUB
+  [MI|CO, RO|II|CE, MI|IO, AO|RI,       0,        0, 0, 0], # 0100 - STA
+  [MI|CO, RO|II|CE, IO|AI, 0,           0,        0, 0, 0], # 0101 - LDI
+  [MI|CO, RO|II|CE, IO|J,  0,           0,        0, 0, 0], # 0110 - JMP
+  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 0111 - JCS
+  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1000 - JEQ
+  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1001 - OP9
+  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1010 - OP10
+  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1011 - OP11
+  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1100 - OP12
+  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1101 - OP13
+  [MI|CO, RO|II|CE, AO|OI, 0,           0,        0, 0, 0], # 1110 - OUT
+  [MI|CO, RO|II|CE, HL,    0,           0,        0, 0, 0], # 1111 - HLT
+]
 
-# NOP instruction
-lt_rom_data[NOP | STEP0] = MI      ; rt_rom_data[NOP | STEP0] = CO
-lt_rom_data[NOP | STEP1] = RO | II ; rt_rom_data[NOP | STEP1] = CE
-lt_rom_data[NOP | STEP2] = NIL     ; rt_rom_data[NOP | STEP2] = NIL
-lt_rom_data[NOP | STEP3] = NIL     ; rt_rom_data[NOP | STEP3] = NIL
-lt_rom_data[NOP | STEP4] = NIL     ; rt_rom_data[NOP | STEP4] = NIL
+# create four copies of the instructions, for each combination
+# of the zero flag (Z) and carry flag (C)
+# Index 0 is Z=0, C=0
+# Index 1 is Z=0, C=1
+# Index 2 is Z=1, C=0
+# Index 3 is Z=1, C=1
+instructions_by_flag = [copy.deepcopy(instructions) for _ in range(4)]
 
-# LDA instruction
-lt_rom_data[LDA | STEP0] = MI      ; rt_rom_data[LDA | STEP0] = CO
-lt_rom_data[LDA | STEP1] = RO | II ; rt_rom_data[LDA | STEP1] = CE
-lt_rom_data[LDA | STEP2] = MI | IO ; rt_rom_data[LDA | STEP2] = NIL # Put the instruction address onto the bus and load it into the MAR (4 lsb)
-lt_rom_data[LDA | STEP3] = RO | AI ; rt_rom_data[LDA | STEP3] = NIL # Output the RAM value onto the bus, load it into the A register
-lt_rom_data[LDA | STEP4] = NIL     ; rt_rom_data[LDA | STEP4] = NIL
+# print ("JCS (0,0): ", instructions_by_flag[FLAGS_Z0C0][JCS][2])
+# print ("JCS (0,1): ", instructions_by_flag[FLAGS_Z0C1][JCS][2])
+# print ("JCS (1,0): ", instructions_by_flag[FLAGS_Z1C0][JCS][2])
+# print ("JCS (1,1): ", instructions_by_flag[FLAGS_Z1C1][JCS][2])
 
+# print("Flags Z0C0: ", FLAGS_Z0C0)
+# print("Flags Z0C1: ", FLAGS_Z0C1)
+# print("Flags Z1C0: ", FLAGS_Z1C0)
+# print("Flags Z1C1: ", FLAGS_Z1C1)
+instructions_by_flag[FLAGS_Z0C1][JCS][2] = IO|J # Jump if carry set
+instructions_by_flag[FLAGS_Z1C1][JCS][2] = IO|J # Jump if carry set
 
-# ADD instruction
-lt_rom_data[ADD | STEP0] = MI      ; rt_rom_data[ADD | STEP0] = CO
-lt_rom_data[ADD | STEP1] = RO | II ; rt_rom_data[ADD | STEP1] = CE
-lt_rom_data[ADD | STEP2] = MI | IO ; rt_rom_data[ADD | STEP2] = NIL # Put the instruction address onto the bus and load it into the MAR
-lt_rom_data[ADD | STEP3] = RO      ; rt_rom_data[ADD | STEP3] = BI  # Load the B register with the value at the address in the instruction register
-lt_rom_data[ADD | STEP4] = AI      ; rt_rom_data[ADD | STEP4] = EO  # Output the sum of the A and B registers to the bus, load it into the A register
+instructions_by_flag[FLAGS_Z1C0][JEQ][2] = IO|J # Jump if equal
+instructions_by_flag[FLAGS_Z1C1][JEQ][2] = IO|J # Jump if equal
 
-# SUB instruction
-lt_rom_data[SUB | STEP0] = MI      ; rt_rom_data[SUB | STEP0] = CO
-lt_rom_data[SUB | STEP1] = RO | II ; rt_rom_data[SUB | STEP1] = CE
-lt_rom_data[SUB | STEP2] = MI | IO ; rt_rom_data[SUB | STEP2] = NIL     # Load the instruction register with the address to subtract
-lt_rom_data[SUB | STEP3] = RO      ; rt_rom_data[SUB | STEP3] = BI      # Put the RAM value onto the bus, load B register
-lt_rom_data[SUB | STEP4] = AI      ; rt_rom_data[SUB | STEP4] = EO | SU # Output the difference of the A and B registers to the bus, load it into the A register
+# print ("JCS (0,0): ", instructions_by_flag[FLAGS_Z0C0][JCS][2])
+# print ("JCS (0,1): ", instructions_by_flag[FLAGS_Z0C1][JCS][2])
+# print ("JCS (1,0): ", instructions_by_flag[FLAGS_Z1C0][JCS][2])
+# print ("JCS (1,1): ", instructions_by_flag[FLAGS_Z1C1][JCS][2])
 
-# STA instruction
-lt_rom_data[STA | STEP0] = MI      ; rt_rom_data[STA | STEP0] = CO
-lt_rom_data[STA | STEP1] = RO | II ; rt_rom_data[STA | STEP1] = CE
-lt_rom_data[STA | STEP2] = IO | MI ; rt_rom_data[STA | STEP2] = NIL # Load the instruction register with the address to store (4 lsb)
-lt_rom_data[STA | STEP3] = AO | RI ; rt_rom_data[STA | STEP3] = NIL
-lt_rom_data[STA | STEP4] = NIL     ; rt_rom_data[STA | STEP4] = NIL
+rom_data = bytearray(2048)
 
-# LDI instruction
-lt_rom_data[LDI | STEP0] = MI      ; rt_rom_data[LDI | STEP0] = CO
-lt_rom_data[LDI | STEP1] = RO | II ; rt_rom_data[LDI | STEP1] = CE
-lt_rom_data[LDI | STEP2] = IO | AI ; rt_rom_data[LDI | STEP2] = NIL # Load the A register with the 4 lsb of the instruction register (immediate value)
-lt_rom_data[LDI | STEP3] = NIL     ; rt_rom_data[LDI | STEP3] = NIL
-lt_rom_data[LDI | STEP4] = NIL     ; rt_rom_data[LDI | STEP4] = NIL
+address = 0
+for address in range(1024):
+  flags       = (address & 0b1100000000) >> 8
+  byte_select = (address & 0b0010000000) >> 7
+  instruction = (address & 0b0001111000) >> 3
+  step        = (address & 0b0000000111)
+  if byte_select:
+    control_word = instructions_by_flag[flags][instruction][step] & 0xFF
+    print(f"Right Address  {address:04x} - Flags: {flags}, Instruction: {instruction}, Step: {step} - Control Word: {control_word:08b}")
+    rom_data[address] = control_word
+  else:
+    control_word = instructions_by_flag[flags][instruction][step] >> 8
+    print(f"Left Address {address:04x} - Flags: {flags}, Instruction: {instruction}, Step: {step} - Control Word: {control_word:08b}")
+    rom_data[address] = control_word
 
-# JMP instruction
-lt_rom_data[JMP | STEP0] = MI      ; rt_rom_data[JMP | STEP0] = CO
-lt_rom_data[JMP | STEP1] = RO | II ; rt_rom_data[JMP | STEP1] = CE
-lt_rom_data[JMP | STEP2] = IO      ; rt_rom_data[JMP | STEP2] = J
-lt_rom_data[JMP | STEP3] = NIL     ; rt_rom_data[JMP | STEP3] = NIL
-lt_rom_data[JMP | STEP4] = NIL     ; rt_rom_data[JMP | STEP4] = NIL
+with open("control-words-rom.bin", "wb") as f:
+  f.write(rom_data)
 
-# OP7 instruction
-lt_rom_data[OP7 | STEP0] = MI      ; rt_rom_data[OP7 | STEP0] = CO
-lt_rom_data[OP7 | STEP1] = RO | II ; rt_rom_data[OP7 | STEP1] = CE
-lt_rom_data[OP7 | STEP2] = NIL     ; rt_rom_data[OP7 | STEP2] = NIL
-lt_rom_data[OP7 | STEP3] = NIL     ; rt_rom_data[OP7 | STEP3] = NIL
-lt_rom_data[OP7 | STEP4] = NIL     ; rt_rom_data[OP7 | STEP4] = NIL
+# Helper to decode control word bits into names
+CONTROL_BITS = [
+  (HL, "HLT"),
+  (MI, "MI"),
+  (RI, "RI"),
+  (RO, "RO"),
+  (IO, "IO"),
+  (II, "II"),
+  (AI, "AI"),
+  (AO, "AO"),
+  (EO, "EO"),
+  (SU, "SU"),
+  (BI, "BI"),
+  (OI, "OI"),
+  (CE, "CE"),
+  (CO, "CO"),
+  (J,  "J"),
+  (FI, "FI"),
+]
 
-# OP8 instruction
-lt_rom_data[OP8 | STEP0] = MI      ; rt_rom_data[OP8 | STEP0] = CO
-lt_rom_data[OP8 | STEP1] = RO | II ; rt_rom_data[OP8 | STEP1] = CE
-lt_rom_data[OP8 | STEP2] = NIL     ; rt_rom_data[OP8 | STEP2] = NIL
-lt_rom_data[OP8 | STEP3] = NIL     ; rt_rom_data[OP8 | STEP3] = NIL
-lt_rom_data[OP8 | STEP4] = NIL     ; rt_rom_data[OP8 | STEP4] = NIL
+def decode_control_word(word):
+  if word == 0:
+    return ""
+  names = []
+  for bit, name in CONTROL_BITS:
+    if word & bit:
+      names.append(name)
+  return "|".join(names)
 
-# OP9 instruction
-lt_rom_data[OP9 | STEP0] = MI      ; rt_rom_data[OP9 | STEP0] = CO
-lt_rom_data[OP9 | STEP1] = RO | II ; rt_rom_data[OP9 | STEP1] = CE
-lt_rom_data[OP9 | STEP2] = NIL     ; rt_rom_data[OP9 | STEP2] = NIL
-lt_rom_data[OP9 | STEP3] = NIL     ; rt_rom_data[OP9 | STEP3] = NIL
-lt_rom_data[OP9 | STEP4] = NIL     ; rt_rom_data[OP9 | STEP4] = NIL
-
-# OP10 instruction
-lt_rom_data[OP10 | STEP0] = MI      ; rt_rom_data[OP10 | STEP0] = CO
-lt_rom_data[OP10 | STEP1] = RO | II ; rt_rom_data[OP10 | STEP1] = CE
-lt_rom_data[OP10 | STEP2] = NIL     ; rt_rom_data[OP10 | STEP2] = NIL
-lt_rom_data[OP10 | STEP3] = NIL     ; rt_rom_data[OP10 | STEP3] = NIL
-lt_rom_data[OP10 | STEP4] = NIL     ; rt_rom_data[OP10 | STEP4] = NIL
-
-# OP11 instruction
-lt_rom_data[OP11 | STEP0] = MI      ; rt_rom_data[OP11 | STEP0] = CO
-lt_rom_data[OP11 | STEP1] = RO | II ; rt_rom_data[OP11 | STEP1] = CE
-lt_rom_data[OP11 | STEP2] = NIL     ; rt_rom_data[OP11 | STEP2] = NIL
-lt_rom_data[OP11 | STEP3] = NIL     ; rt_rom_data[OP11 | STEP3] = NIL
-lt_rom_data[OP11 | STEP4] = NIL     ; rt_rom_data[OP11 | STEP4] = NIL
-
-# OP12 instruction
-lt_rom_data[OP12 | STEP0] = MI      ; rt_rom_data[OP12 | STEP0] = CO
-lt_rom_data[OP12 | STEP1] = RO | II ; rt_rom_data[OP12 | STEP1] = CE
-lt_rom_data[OP12 | STEP2] = NIL     ; rt_rom_data[OP12 | STEP2] = NIL
-lt_rom_data[OP12 | STEP3] = NIL     ; rt_rom_data[OP12 | STEP3] = NIL
-lt_rom_data[OP12 | STEP4] = NIL     ; rt_rom_data[OP12 | STEP4] = NIL
-
-# OP13 instruction
-lt_rom_data[OP13 | STEP0] = MI      ; rt_rom_data[OP13 | STEP0] = CO
-lt_rom_data[OP13 | STEP1] = RO | II ; rt_rom_data[OP13 | STEP1] = CE
-lt_rom_data[OP13 | STEP2] = NIL     ; rt_rom_data[OP13 | STEP2] = NIL
-lt_rom_data[OP13 | STEP3] = NIL     ; rt_rom_data[OP13 | STEP3] = NIL
-lt_rom_data[OP13 | STEP4] = NIL     ; rt_rom_data[OP13 | STEP4] = NIL
-
-# OUT instruction
-lt_rom_data[OUT | STEP0] = MI      ; rt_rom_data[OUT | STEP0] = CO
-lt_rom_data[OUT | STEP1] = RO | II ; rt_rom_data[OUT | STEP1] = CE
-lt_rom_data[OUT | STEP2] = AO      ; rt_rom_data[OUT | STEP2] = OI
-lt_rom_data[OUT | STEP3] = NIL     ; rt_rom_data[OUT | STEP3] = NIL
-lt_rom_data[OUT | STEP4] = NIL     ; rt_rom_data[OUT | STEP4] = NIL
-
-# HLT instruction
-lt_rom_data[HLT | STEP0] = MI      ; rt_rom_data[HLT | STEP0] = CO
-lt_rom_data[HLT | STEP1] = RO | II ; rt_rom_data[HLT | STEP1] = CE
-lt_rom_data[HLT | STEP2] = HL      ; rt_rom_data[HLT | STEP2] = NIL
-lt_rom_data[HLT | STEP3] = NIL     ; rt_rom_data[HLT | STEP3] = NIL
-lt_rom_data[HLT | STEP4] = NIL     ; rt_rom_data[HLT | STEP4] = NIL
-
-# Write rom files
-with open("control-words-rom-left.bin", "wb") as f:
-  f.write(lt_rom_data)
-  
-with open("control-words-rom-right.bin", "wb") as f:
-  f.write(rt_rom_data)
+with open("instructions.csv", "w", newline="") as csvfile:
+  writer = csv.writer(csvfile)
+  writer.writerow(["Opcode", "Step 0", "Step 1", "Step 2", "Step 3", "Step 4", "Step 5", "Step 6", "Step 7"])
+  for opcode, steps in enumerate(instructions):
+    row = [f"{opcode:04b}"] + [decode_control_word(step) for step in steps]
+    writer.writerow(row)
