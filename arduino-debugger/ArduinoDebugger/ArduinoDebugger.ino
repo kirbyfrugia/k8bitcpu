@@ -11,22 +11,22 @@ char steps[3];
 char data[8];
 
 static const char* const instructions[16][8] = {
-  {"MI|CO", "RO|II|CE", "",      "",      "",            "", "", ""}, // 0000 - NOP
-  {"MI|CO", "RO|II|CE", "MI|IO", "RO|AI", "",            "", "", ""}, // 0001 - LDA
-  {"MI|CO", "RO|II|CE", "MI|IO", "RO|BI", "AI|EO|FI",    "", "", ""}, // 0010 - ADD
-  {"MI|CO", "RO|II|CE", "MI|IO", "RO|BI", "AI|EO|SU|FI", "", "", ""}, // 0011 - SUB
-  {"MI|CO", "RO|II|CE", "MI|IO", "AO|RI", "",            "", "", ""}, // 0100 - STA
-  {"MI|CO", "RO|II|CE", "IO|AI", "",      "",            "", "", ""}, // 0101 - LDI
-  {"MI|CO", "RO|II|CE", "IO|J",  "",      "",            "", "", ""}, // 0110 - JMP
-  {"MI|CO", "RO|II|CE", "",      "",      "",            "", "", ""}, // 0111 - JCS
-  {"MI|CO", "RO|II|CE", "",      "",      "",            "", "", ""}, // 1000 - JEQ
-  {"MI|CO", "RO|II|CE", "",      "",      "",            "", "", ""}, // 1001 - OP9
-  {"MI|CO", "RO|II|CE", "",      "",      "",            "", "", ""}, // 1010 - OP10
-  {"MI|CO", "RO|II|CE", "",      "",      "",            "", "", ""}, // 1011 - OP11
-  {"MI|CO", "RO|II|CE", "",      "",      "",            "", "", ""}, // 1100 - OP12
-  {"MI|CO", "RO|II|CE", "",      "",      "",            "", "", ""}, // 1101 - OP13
-  {"MI|CO", "RO|II|CE", "AO|OI", "",      "",            "", "", ""}, // 1110 - OUT
-  {"MI|CO", "RO|II|CE", "HL",    "",      "",            "", "", ""}  // 1111 - HLT
+  {"MI|CO", "RO|II|CE", "TR",    "0",               "",            "",         "",   ""}, // 0000 - NOP
+  {"MI|CO", "RO|II|CE", "CO|MI", "RO|MI|CE",        "RO|AI",       "TR",       "",   ""}, // 0001 - LDA
+  {"MI|CO", "RO|II|CE", "CO|MI", "RO|MI|CE",        "RO|BI|FI",    "EO|AI",    "TR", ""}, // 0010 - ADD
+  {"MI|CO", "RO|II|CE", "CO|MI", "RO|MI|CE",        "RO|BI|SU|FI", "EO|AI|SU", "TR", ""}, // 0011 - SUB
+  {"MI|CO", "RO|II|CE", "CO|MI", "RO|MI|CE",        "AO|RI",       "TR",       "",   ""}, // 0100 - STA
+  {"MI|CO", "RO|II|CE", "CO|MI", "RO|AI|CE",        "TR",          "",         "",   ""}, // 0101 - LDI
+  {"MI|CO", "RO|II|CE", "CO|MI", "RO|J",            "TR",          "",         "",   ""}, // 0110 - JMP
+  {"MI|CO", "RO|II|CE", "CE",    "TR",              "",            "",         "",   ""}, // 0111 - JCS
+  {"MI|CO", "RO|II|CE", "CE",    "TR",              "",            "",         "",   ""}, // 1000 - JEQ
+  {"MI|CO", "RO|II|CE", "CO|MI", "RO|BI|CE|FI",     "EO|AI",       "TR",       "",   ""}, // 1001 - ADI
+  {"MI|CO", "RO|II|CE", "CO|MI", "RO|BI|SU|CE|FI",  "EO|AI|SU",    "TR",       "",   ""}, // 1010 - SUI
+  {"MI|CO", "RO|II|CE", "TR",    "0",               "",            "",         "",   ""}, // 1011 - OP11
+  {"MI|CO", "RO|II|CE", "TR",    "0",               "",            "",         "",   ""}, // 1100 - OP12
+  {"MI|CO", "RO|II|CE", "TR",    "0",               "",            "",         "",   ""}, // 1101 - OP13
+  {"MI|CO", "RO|II|CE", "AO|OI", "TR",              "",            "",         "",   ""}, // 1110 - OUT
+  {"MI|CO", "RO|II|CE", "HL",    "HL",              "",            "",         "",   ""}  // 1111 - HLT
 };
 
 static const char* opcodeMnemonics[] = {
@@ -79,7 +79,7 @@ void setup() {
     pinMode(STEP_PINS[i], INPUT);
   }
 
-  for (int i = 0; i < 3; ++i) {
+  for (int i = 0; i < 8; ++i) {
     pinMode(DATA[i], INPUT);
   }
 

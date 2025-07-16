@@ -43,7 +43,7 @@ HL = 0b1000000000000000  # Halt the CPU
 MI = 0b0100000000000000  # Load memory address register
 RI = 0b0010000000000000  # RAM Input
 RO = 0b0001000000000000  # RAM Output
-IO = 0b0000100000000000  # Instruction Register Output
+TR = 0b0000100000000000  # t-state reset, reset the step counter
 II = 0b0000010000000000  # Instruction Register Input
 AI = 0b0000001000000000  # A Register Input
 AO = 0b0000000100000000  # A Register Output
@@ -71,22 +71,22 @@ JEQ = 0b00001000 # Jump if equal (zero flag set)
 # inverse clock to deal with a timing issue.
 
 instructions = [
-  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 0000 - NOP
-  [MI|CO, RO|II|CE, MI|IO, RO|AI,       0,        0, 0, 0], # 0001 - LDA
-  [MI|CO, RO|II|CE, MI|IO, RO|BI|FI,    AI|EO,    0, 0, 0], # 0010 - ADD
-  [MI|CO, RO|II|CE, MI|IO, RO|BI|SU|FI, AI|EO|SU, 0, 0, 0], # 0011 - SUB
-  [MI|CO, RO|II|CE, MI|IO, AO|RI,       0,        0, 0, 0], # 0100 - STA
-  [MI|CO, RO|II|CE, IO|AI, 0,           0,        0, 0, 0], # 0101 - LDI
-  [MI|CO, RO|II|CE, IO|J,  0,           0,        0, 0, 0], # 0110 - JMP
-  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 0111 - JCS
-  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1000 - JEQ
-  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1001 - OP9
-  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1010 - OP10
-  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1011 - OP11
-  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1100 - OP12
-  [MI|CO, RO|II|CE, 0,     0,           0,        0, 0, 0], # 1101 - OP13
-  [MI|CO, RO|II|CE, AO|OI, 0,           0,        0, 0, 0], # 1110 - OUT
-  [MI|CO, RO|II|CE, HL,    0,           0,        0, 0, 0], # 1111 - HLT
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 0000 - NOP
+  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        RO|AI,       TR,       0,  0], # 0001 - LDA
+  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        RO|BI|FI,    EO|AI,    TR, 0], # 0010 - ADD
+  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        RO|BI|SU|FI, EO|AI|SU, TR, 0], # 0011 - SUB
+  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        AO|RI,       TR,       0,  0], # 0100 - STA
+  [MI|CO, RO|II|CE, CO|MI, RO|AI|CE,        TR,          0,        0,  0], # 0101 - LDI
+  [MI|CO, RO|II|CE, CO|MI, RO|J,            TR,          0,        0,  0], # 0110 - JMP
+  [MI|CO, RO|II|CE, CE,    TR,              0,           0,        0,  0], # 0111 - JCS
+  [MI|CO, RO|II|CE, CE,    TR,              0,           0,        0,  0], # 1000 - JEQ
+  [MI|CO, RO|II|CE, CO|MI, RO|BI|CE|FI,     EO|AI,       TR,       0,  0], # 1001 - ADI
+  [MI|CO, RO|II|CE, CO|MI, RO|BI|SU|CE|FI,  EO|AI|SU,    TR,       0,  0], # 1010 - SUI
+  [MI|CO, RO|II|CE, MI,    RI,              J,           TR,       0,  0], # 1011 - PRG
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 1100 - OP12
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 1101 - OP13
+  [MI|CO, RO|II|CE, AO|OI, TR,              0,           0,        0,  0], # 1110 - OUT
+  [MI|CO, RO|II|CE, HL,    HL,              0,           0,        0,  0], # 1111 - HLT
 ]
 
 # create four copies of the instructions, for each combination
@@ -97,25 +97,21 @@ instructions = [
 # Index 3 is Z=1, C=1
 instructions_by_flag = [copy.deepcopy(instructions) for _ in range(4)]
 
-# print ("JCS (0,0): ", instructions_by_flag[FLAGS_Z0C0][JCS][2])
-# print ("JCS (0,1): ", instructions_by_flag[FLAGS_Z0C1][JCS][2])
-# print ("JCS (1,0): ", instructions_by_flag[FLAGS_Z1C0][JCS][2])
-# print ("JCS (1,1): ", instructions_by_flag[FLAGS_Z1C1][JCS][2])
+instructions_by_flag[FLAGS_Z0C1][JCS][2] = CO|MI
+instructions_by_flag[FLAGS_Z0C1][JCS][3] = RO|J
+instructions_by_flag[FLAGS_Z0C1][JCS][4] = TR
 
-# print("Flags Z0C0: ", FLAGS_Z0C0)
-# print("Flags Z0C1: ", FLAGS_Z0C1)
-# print("Flags Z1C0: ", FLAGS_Z1C0)
-# print("Flags Z1C1: ", FLAGS_Z1C1)
-instructions_by_flag[FLAGS_Z0C1][JCS][2] = IO|J # Jump if carry set
-instructions_by_flag[FLAGS_Z1C1][JCS][2] = IO|J # Jump if carry set
+instructions_by_flag[FLAGS_Z1C1][JCS][2] = CO|MI
+instructions_by_flag[FLAGS_Z1C1][JCS][3] = RO|J
+instructions_by_flag[FLAGS_Z1C1][JCS][4] = TR
 
-instructions_by_flag[FLAGS_Z1C0][JEQ][2] = IO|J # Jump if equal
-instructions_by_flag[FLAGS_Z1C1][JEQ][2] = IO|J # Jump if equal
+instructions_by_flag[FLAGS_Z1C0][JEQ][2] = CO|MI
+instructions_by_flag[FLAGS_Z1C0][JEQ][3] = RO|J
+instructions_by_flag[FLAGS_Z1C0][JEQ][4] = TR
 
-# print ("JCS (0,0): ", instructions_by_flag[FLAGS_Z0C0][JCS][2])
-# print ("JCS (0,1): ", instructions_by_flag[FLAGS_Z0C1][JCS][2])
-# print ("JCS (1,0): ", instructions_by_flag[FLAGS_Z1C0][JCS][2])
-# print ("JCS (1,1): ", instructions_by_flag[FLAGS_Z1C1][JCS][2])
+instructions_by_flag[FLAGS_Z1C1][JEQ][2] = CO|MI
+instructions_by_flag[FLAGS_Z1C1][JEQ][3] = RO|J
+instructions_by_flag[FLAGS_Z1C1][JEQ][4] = TR
 
 rom_data = bytearray(2048)
 
@@ -139,11 +135,11 @@ with open("control-words-rom.bin", "wb") as f:
 
 # Helper to decode control word bits into names
 CONTROL_BITS = [
-  (HL, "HLT"),
+  (HL, "HL"),
   (MI, "MI"),
   (RI, "RI"),
   (RO, "RO"),
-  (IO, "IO"),
+  (TR, "TR"),
   (II, "II"),
   (AI, "AI"),
   (AO, "AO"),
@@ -168,7 +164,11 @@ def decode_control_word(word):
 
 with open("instructions.csv", "w", newline="") as csvfile:
   writer = csv.writer(csvfile)
-  writer.writerow(["Opcode", "Step 0", "Step 1", "Step 2", "Step 3", "Step 4", "Step 5", "Step 6", "Step 7"])
+  writer.writerow(["Mnemonic", "Opcode", "Step 0", "Step 1", "Step 2", "Step 3", "Step 4", "Step 5", "Step 6", "Step 7"])
   for opcode, steps in enumerate(instructions):
-    row = [f"{opcode:04b}"] + [decode_control_word(step) for step in steps]
+    mnemonics = [
+      "NOP", "LDA", "ADD", "SUB", "STA", "LDI", "JMP", "JCS",
+      "JEQ", "ADI", "SUI", "OP11", "OP12", "OP13", "OUT", "HLT"
+    ]
+    row = [mnemonics[opcode], f"{opcode:04b}"] + [decode_control_word(step) for step in steps]
     writer.writerow(row)
