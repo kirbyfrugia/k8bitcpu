@@ -1,8 +1,52 @@
+// Purpose: to assemble, load, and execute a program on the ben eater 8-bit cpu via an Arduino instead of dip switches.
+//
+// Not really worth it unless you have 256 bytes of ram, but if you have a long program it can help.
+//
+// Getting started:
+//   Add a PRG opcode 1011. You can use a different one, but that's the one I used.
+//   Wire up the Arduino. See the pins listed below (opcode pins, step pins, data pins, inverted clock)
+//   Put your CPU in program mode by programming opcode 1011 at address zero on your CPU.
+//   If your rom looks different than mine, adjust the #defines below
+//
+// PRG should look like this if you upgraded to 256 bytes and implemented the t-state reset:
+// MI|CO, RO|II|CE, MI, RI, J, TR, 0, 0
+//
+// How it works:
+//   This arduino code watches for when we're at the address for opcode 1011 (PRG) and on steps 2 to 3.
+//   On Step 2, it will output an address for a line in your program.
+//   On Step 3, it will output the data for that line in your program.
+//   On Step 4, it will jump back to Zero, so that the cpu awaits another instruction via PRG.
+//   After Step 4, it increments to the next address in your program. The next time it sees
+//     a PRG, it repeats the above.
+//   When writing the program out, it writes from address 1 to N before zero. This prevents it from
+//     overwriting PRG until it has done everything else. Then it writes address zero and jmps there.
+//   So all you really need to do is write your program here, put your cpu in PRG mode, and go.
+//
+// How to write a program for your CPU (see examples below, e.g. initializeCountProgram):
+//   Call addTwoByteInstruction() for every two byte instruction if you upgraded to 256 bytes, e.g. LDA
+//   Call addOneByteInstruction() for every one byte instruction.
+//   Call addData() for every raw byte of data you want to write.
+//   See examples to see what to do before and after calling the above functions.
+//
+// How to run:
+//   * In this code:
+//     * In setup() call the appropriate initializeXYZProgram that you want to program on your cpu
+//   * On your cpu:
+//     * Manually program opcode PRG at memory location zero.
+//     * Reset the arduino
+//     * Reset your cpu.
+//     * Your program should load into memory and then execute
+//
+// Note: For debugging, I wanted a way to not immediately jump back to zero and execute the program.
+//   So for the addXByteInstruction functions, you can pass in the address you want to jump to
+//   after each byte of the  instruction is written to RAM on your cpu. So, for example, the multiply
+//   program below will jump to byte 13, which is a HLT in the program instead of starting at the beginning.
+
 const char OPCODE_PINS[] = { 31,33,35,37};
 const char STEP_PINS[] = {39,41, 43};
 const char DATA_PINS[] = {30,32,34,36,38,40,42,44}; // D7 to D0
 
-#define CLOCK_NEG 3
+#define INVERTED_CLOCK 3
 
 uint8_t opcodes[4];
 uint8_t steps[3];
@@ -56,7 +100,7 @@ void writeData(uint8_t step, uint8_t theData) {
 }
 
 void readInstruction() {
-  delayMicroseconds(5);
+  //delayMicroseconds(5);
   int opcodeR = 0;
   for (int i = 0; i < 4; ++i) {
     opcodes[i] = digitalRead(OPCODE_PINS[i]);
@@ -87,13 +131,6 @@ void decodeInstruction() {
     return;
   }
 
-  Serial.print("Decoding ");
-  Serial.print("address: ");
-  Serial.print(currentAddress);
-  Serial.print(", step: ");
-  Serial.print(stepRead);
-  Serial.print(", data: ");
-  Serial.println(programData[currentAddress][stepRead - 2]);
   writeData(stepRead, programData[currentAddress][stepRead - 2]);
 
   // If we finish overwriting PRG with our program's first byte,
@@ -120,7 +157,7 @@ void decodeInstruction() {
 
 
 // Read the instruction after the negative clock tick
-void clockTickNeg() {
+void invertedClockTick() {
   readInstruction();
   decodeInstruction();
 }
@@ -244,9 +281,9 @@ void setup() {
 
   floatDataPins();
 
-  pinMode(CLOCK_NEG, INPUT);
+  pinMode(INVERTED_CLOCK, INPUT);
   readInstruction();
-  attachInterrupt(digitalPinToInterrupt(CLOCK_NEG), clockTickNeg, RISING);
+  attachInterrupt(digitalPinToInterrupt(INVERTED_CLOCK), invertedClockTick, RISING);
 
 }
 
