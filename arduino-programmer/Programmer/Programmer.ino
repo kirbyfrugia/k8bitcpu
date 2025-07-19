@@ -64,7 +64,7 @@ uint8_t data[8];
 #define LDI 0b00000101
 #define JMP 0b00000110
 #define JCS 0b00000111
-#define JEQ 0b00001000
+#define JZS 0b00001000
 #define ADI 0b00001001
 #define SUI 0b00001010
 #define PRG 0b00001011
@@ -75,7 +75,7 @@ uint8_t data[8];
 
 static const char* opcodeMnemonics[] = {
   "NOP", "LDA", "ADD", "SUB", "STA", "LDI", "JMP", "JCS",
-  "JEQ", "ADI", "SUI", "PRG", "O0C", "O0D", "OUT", "HLT",
+  "JZS", "ADI", "SUI", "PRG", "O0C", "O0D", "OUT", "HLT",
   "O10", "O11", "O12", "O13", "O14", "O15", "O16", "O17",
   "O18", "O19", "O1A", "O1B", "O1C", "O1D", "O1E", "O1F"
 };
@@ -241,7 +241,7 @@ void initializeCountProgram() {
   addTwoByteInstruction(JMP, 0b00000000, 0, 0);
   addTwoByteInstruction(SUI, 0b00000001, 0, 0);
   addOneByteInstruction(OUT, 0);
-  addTwoByteInstruction(JEQ, 0b00000000, 0, 0);
+  addTwoByteInstruction(JZS, 0b00000000, 0, 0);
   addTwoByteInstruction(JMP, 0b00000111, 0, 0);
   programSize = currentAddress;
   currentAddress = 1;

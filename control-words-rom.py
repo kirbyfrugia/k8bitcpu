@@ -65,7 +65,7 @@ FLAGS_Z1C0 = 0b10
 FLAGS_Z1C1 = 0b11
 
 JCS = 0b00000111 # Jump if carry set (carry flag set)
-JEQ = 0b00001000 # Jump if equal (zero flag set)
+JZS = 0b00001000 # Jump if equal (zero flag set)
 
 # Note: this differs from Ben Eater's design and sets the flags on the
 # inverse clock to deal with a timing issue.
@@ -79,7 +79,7 @@ instructions = [
   [MI|CO, RO|II|CE, CO|MI, RO|AI|CE,        TR,          0,        0,  0], # 00101 - LDI
   [MI|CO, RO|II|CE, CO|MI, RO|J,            TR,          0,        0,  0], # 00110 - JMP
   [MI|CO, RO|II|CE, CE,    TR,              0,           0,        0,  0], # 00111 - JCS
-  [MI|CO, RO|II|CE, CE,    TR,              0,           0,        0,  0], # 01000 - JEQ
+  [MI|CO, RO|II|CE, CE,    TR,              0,           0,        0,  0], # 01000 - JZS
   [MI|CO, RO|II|CE, CO|MI, RO|BI|CE|FI,     EO|AI,       TR,       0,  0], # 01001 - ADI
   [MI|CO, RO|II|CE, CO|MI, RO|BI|SU|CE|FI,  EO|AI|SU,    TR,       0,  0], # 01010 - SUI
   [MI|CO, RO|II|CE, MI,    RI,              J,           TR,       0,  0], # 01011 - PRG
@@ -121,13 +121,13 @@ instructions_by_flag[FLAGS_Z1C1][JCS][2] = CO|MI
 instructions_by_flag[FLAGS_Z1C1][JCS][3] = RO|J
 instructions_by_flag[FLAGS_Z1C1][JCS][4] = TR
 
-instructions_by_flag[FLAGS_Z1C0][JEQ][2] = CO|MI
-instructions_by_flag[FLAGS_Z1C0][JEQ][3] = RO|J
-instructions_by_flag[FLAGS_Z1C0][JEQ][4] = TR
+instructions_by_flag[FLAGS_Z1C0][JZS][2] = CO|MI
+instructions_by_flag[FLAGS_Z1C0][JZS][3] = RO|J
+instructions_by_flag[FLAGS_Z1C0][JZS][4] = TR
 
-instructions_by_flag[FLAGS_Z1C1][JEQ][2] = CO|MI
-instructions_by_flag[FLAGS_Z1C1][JEQ][3] = RO|J
-instructions_by_flag[FLAGS_Z1C1][JEQ][4] = TR
+instructions_by_flag[FLAGS_Z1C1][JZS][2] = CO|MI
+instructions_by_flag[FLAGS_Z1C1][JZS][3] = RO|J
+instructions_by_flag[FLAGS_Z1C1][JZS][4] = TR
 
 rom_data = bytearray(2048)
 
@@ -184,7 +184,7 @@ with open("instructions.csv", "w", newline="") as csvfile:
   for opcode, steps in enumerate(instructions):
     mnemonics = [
       "NOP", "LDA", "ADD", "SUB", "STA", "LDI", "JMP", "JCS",
-      "JEQ", "ADI", "SUI", "PRG", "O0C", "O0D", "OUT", "HLT",
+      "JZS", "ADI", "SUI", "PRG", "O0C", "O0D", "OUT", "HLT",
       "O10", "O11", "O12", "O13", "O14", "O15", "O16", "O17",
       "O18", "O19", "O1A", "O1B", "O1C", "O1D", "O1E", "O1F"
     ]
