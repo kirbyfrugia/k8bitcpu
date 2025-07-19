@@ -226,9 +226,9 @@ void initializeMultiplyProgram() {
   addTwoByteInstruction(ADD, 0b00011010, 0, 0);
   addTwoByteInstruction(STA, 0b00011000, 0, 0);
   addTwoByteInstruction(JMP, 0b00000100, 0, 0);
-  addData(0b00000000, 0);
-  addData(0b00000011, 0); // test multiply, x = 3
-  addData(0b00000101, 0); // test multiply, x = 5
+  addData(0b00000000, 0); // result
+  addData(0b00000111, 0); // test multiply, x = 7
+  addData(0b00000110, 0); // test multiply, y = 6
   programSize = currentAddress;
   currentAddress = 1;
 }
@@ -275,6 +275,7 @@ void setup() {
   Serial.println("Started");
 
   initializeCountProgram();
+  //initializeMultiplyProgram();
   Serial.println("Program size: ");
   Serial.println(programSize);
 
