@@ -71,22 +71,38 @@ JEQ = 0b00001000 # Jump if equal (zero flag set)
 # inverse clock to deal with a timing issue.
 
 instructions = [
-  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 0000 - NOP
-  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        RO|AI,       TR,       0,  0], # 0001 - LDA
-  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        RO|BI|FI,    EO|AI,    TR, 0], # 0010 - ADD
-  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        RO|BI|SU|FI, EO|AI|SU, TR, 0], # 0011 - SUB
-  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        AO|RI,       TR,       0,  0], # 0100 - STA
-  [MI|CO, RO|II|CE, CO|MI, RO|AI|CE,        TR,          0,        0,  0], # 0101 - LDI
-  [MI|CO, RO|II|CE, CO|MI, RO|J,            TR,          0,        0,  0], # 0110 - JMP
-  [MI|CO, RO|II|CE, CE,    TR,              0,           0,        0,  0], # 0111 - JCS
-  [MI|CO, RO|II|CE, CE,    TR,              0,           0,        0,  0], # 1000 - JEQ
-  [MI|CO, RO|II|CE, CO|MI, RO|BI|CE|FI,     EO|AI,       TR,       0,  0], # 1001 - ADI
-  [MI|CO, RO|II|CE, CO|MI, RO|BI|SU|CE|FI,  EO|AI|SU,    TR,       0,  0], # 1010 - SUI
-  [MI|CO, RO|II|CE, MI,    RI,              J,           TR,       0,  0], # 1011 - PRG
-  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 1100 - OP12
-  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 1101 - OP13
-  [MI|CO, RO|II|CE, AO|OI, TR,              0,           0,        0,  0], # 1110 - OUT
-  [MI|CO, RO|II|CE, HL,    HL,              0,           0,        0,  0], # 1111 - HLT
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 00000 - NOP
+  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        RO|AI,       TR,       0,  0], # 00001 - LDA
+  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        RO|BI|FI,    EO|AI,    TR, 0], # 00010 - ADD
+  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        RO|BI|SU|FI, EO|AI|SU, TR, 0], # 00011 - SUB
+  [MI|CO, RO|II|CE, CO|MI, RO|MI|CE,        AO|RI,       TR,       0,  0], # 00100 - STA
+  [MI|CO, RO|II|CE, CO|MI, RO|AI|CE,        TR,          0,        0,  0], # 00101 - LDI
+  [MI|CO, RO|II|CE, CO|MI, RO|J,            TR,          0,        0,  0], # 00110 - JMP
+  [MI|CO, RO|II|CE, CE,    TR,              0,           0,        0,  0], # 00111 - JCS
+  [MI|CO, RO|II|CE, CE,    TR,              0,           0,        0,  0], # 01000 - JEQ
+  [MI|CO, RO|II|CE, CO|MI, RO|BI|CE|FI,     EO|AI,       TR,       0,  0], # 01001 - ADI
+  [MI|CO, RO|II|CE, CO|MI, RO|BI|SU|CE|FI,  EO|AI|SU,    TR,       0,  0], # 01010 - SUI
+  [MI|CO, RO|II|CE, MI,    RI,              J,           TR,       0,  0], # 01011 - PRG
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 01100 - O0C
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 01101 - O0D
+  [MI|CO, RO|II|CE, AO|OI, TR,              0,           0,        0,  0], # 01110 - OUT
+  [MI|CO, RO|II|CE, HL,    HL,              0,           0,        0,  0], # 01111 - HLT
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 10000 - O10
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 10001 - O11
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 10010 - O12
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 10011 - O13
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 10100 - O14
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 10101 - O15
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 10110 - O16
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 10111 - O17
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 11000 - O18
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 11001 - O19
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 11010 - O1A
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 11011 - O1B
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 11100 - O1C
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 11101 - O1D
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 11110 - O1E
+  [MI|CO, RO|II|CE, TR,    0,               0,           0,        0,  0], # 11111 - O1F
 ]
 
 # create four copies of the instructions, for each combination
@@ -116,11 +132,11 @@ instructions_by_flag[FLAGS_Z1C1][JEQ][4] = TR
 rom_data = bytearray(2048)
 
 address = 0
-for address in range(1024):
-  flags       = (address & 0b1100000000) >> 8
-  byte_select = (address & 0b0010000000) >> 7
-  instruction = (address & 0b0001111000) >> 3
-  step        = (address & 0b0000000111)
+for address in range(2048):
+  flags       = (address & 0b11000000000) >> 9
+  byte_select = (address & 0b00100000000) >> 8
+  instruction = (address & 0b00011111000) >> 3
+  step        = (address & 0b00000000111)
   if byte_select:
     control_word = instructions_by_flag[flags][instruction][step] & 0xFF
     print(f"Right Address  {address:04x} - Flags: {flags}, Instruction: {instruction}, Step: {step} - Control Word: {control_word:08b}")
@@ -168,7 +184,9 @@ with open("instructions.csv", "w", newline="") as csvfile:
   for opcode, steps in enumerate(instructions):
     mnemonics = [
       "NOP", "LDA", "ADD", "SUB", "STA", "LDI", "JMP", "JCS",
-      "JEQ", "ADI", "SUI", "OP11", "OP12", "OP13", "OUT", "HLT"
+      "JEQ", "ADI", "SUI", "PRG", "O0C", "O0D", "OUT", "HLT",
+      "O10", "O11", "O12", "O13", "O14", "O15", "O16", "O17",
+      "O18", "O19", "O1A", "O1B", "O1C", "O1D", "O1E", "O1F"
     ]
     row = [mnemonics[opcode], f"{opcode:04b}"] + [decode_control_word(step) for step in steps]
     writer.writerow(row)
