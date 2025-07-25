@@ -26,7 +26,7 @@
 //     overwriting PRG until it has done everything else. Then it writes address zero and jmps there.
 //   So all you really need to do is write your program here, put your cpu in PRG mode, and go.
 //
-// How to write a program for your CPU (see examples below, e.g. initializeCountProgram):
+// How to write a program for your CPU (see examples below, e.g. loadCountProgram):
 //   Call addTwoByteInstruction() for every two byte instruction if you upgraded to 256 bytes, e.g. LDA
 //   Call addOneByteInstruction() for every one byte instruction.
 //   Call addData() for every raw byte of data you want to write.
@@ -34,7 +34,7 @@
 //
 // How to run:
 //   * In this code:
-//     * In setup() call the appropriate initializeXYZProgram that you want to program on your cpu
+//     * In setup() call the appropriate loadXYZProgram that you want to program on your cpu
 //   * On your cpu:
 //     * Manually program opcode PRG at memory location zero.
 //     * Reset the arduino
@@ -68,15 +68,19 @@ uint8_t data[8];
 #define ADI 0b00001001
 #define SUI 0b00001010
 #define PRG 0b00001011
-#define OPC 0b00001100
-#define OPD 0b00001101
+#define SEC 0b00001100
+#define CLC 0b00001101
 #define OUT 0b00001110
 #define HLT 0b00001111
+#define ADC 0b00010000
+#define SBC 0b00010001
+#define INC 0b00010010
+#define DEC 0b00010011
 
 static const char* opcodeMnemonics[] = {
   "NOP", "LDA", "ADD", "SUB", "STA", "LDI", "JMP", "JCS",
-  "JZS", "ADI", "SUI", "PRG", "O0C", "O0D", "OUT", "HLT",
-  "O10", "O11", "O12", "O13", "O14", "O15", "O16", "O17",
+  "JZS", "ADI", "SUI", "PRG", "SEC", "CLC", "OUT", "HLT",
+  "ADC", "SBC", "INC", "DEC", "O14", "O15", "O16", "O17",
   "O18", "O19", "O1A", "O1B", "O1C", "O1D", "O1E", "O1F"
 };
 
@@ -211,29 +215,32 @@ void addData(uint8_t rawData, uint8_t jump) {
   ++currentAddress;
 }
 
-void initializeMultiplyProgram() {
+// Multiplies two numbers, stored at 25,26.
+// Result is at 24. Result is outputted
+void loadMultiplyProgram() {
   currentAddress = 0;
   addTwoByteInstruction(LDI, 0b00000000, 13, 0); // jump straight to halt as debug
-  addTwoByteInstruction(STA, 0b00011000, 0, 0);
-  addTwoByteInstruction(LDA, 0b00011001, 0, 0);
+  addTwoByteInstruction(STA, 0b00011001, 0, 0);
+  addTwoByteInstruction(LDA, 0b00011010, 0, 0);
   addTwoByteInstruction(SUI, 0b00000001, 0, 0);
   addTwoByteInstruction(JCS, 0b00001110, 0, 0);
-  addTwoByteInstruction(LDA, 0b00011000, 0, 0);
+  addTwoByteInstruction(LDA, 0b00011001, 0, 0);
   addOneByteInstruction(OUT, 0);
   addOneByteInstruction(HLT, 0);
+  addTwoByteInstruction(STA, 0b00011010, 0, 0); // 00001110
+  addTwoByteInstruction(LDA, 0b00011001, 0, 0);
+  addTwoByteInstruction(ADD, 0b00011011, 0, 0);
   addTwoByteInstruction(STA, 0b00011001, 0, 0);
-  addTwoByteInstruction(LDA, 0b00011000, 0, 0);
-  addTwoByteInstruction(ADD, 0b00011010, 0, 0);
-  addTwoByteInstruction(STA, 0b00011000, 0, 0);
+  addOneByteInstruction(OUT, 0);
   addTwoByteInstruction(JMP, 0b00000100, 0, 0);
-  addData(0b00000000, 0); // result
-  addData(0b00000111, 0); // test multiply, x = 7
-  addData(0b00000110, 0); // test multiply, y = 6
+  addData(0b00000000, 0); // A: 24, 0b00011001 result
+  addData(0b00000111, 0); // A: 25, 0b00011010 x = 7
+  addData(0b00000110, 0); // A: 26, 0b00011011 y = 6
   programSize = currentAddress;
   currentAddress = 1;
 }
 
-void initializeCountProgram() {
+void loadCountProgram() {
   currentAddress = 0;
   addOneByteInstruction(OUT, 0);
   addTwoByteInstruction(ADI, 0b00000001, 0, 0);
@@ -247,11 +254,119 @@ void initializeCountProgram() {
   currentAddress = 1;
 }
 
-void initializeSimpleProgram() {
+void loadSimpleProgram() {
   currentAddress = 0;
   addTwoByteInstruction(LDI, 0b00101010, 0, 0);
   addOneByteInstruction(OUT, 0);
   addOneByteInstruction(HLT, 0);
+  programSize = currentAddress;
+  currentAddress = 1;
+}
+
+void loadDECINCTestProgram() {
+  currentAddress = 0;
+  addTwoByteInstruction(LDI, 0b00101010, 0, 0);
+  addOneByteInstruction(OUT, 0);
+  addOneByteInstruction(DEC, 0);
+  addOneByteInstruction(OUT, 0);
+  addOneByteInstruction(INC, 0);
+  addOneByteInstruction(OUT, 0);
+  addOneByteInstruction(HLT, 0);
+  programSize = currentAddress;
+  currentAddress = 1;
+}
+
+// Loads 42, subtracts 15 and displays it. Then adds 15.
+void loadSUBADDTestProgram() {
+  currentAddress = 0;
+  addTwoByteInstruction(LDI, 0b00101010, 0, 0);
+  addOneByteInstruction(OUT, 0);
+  addTwoByteInstruction(SUB, 0b00001010, 0, 0);
+  addOneByteInstruction(OUT, 0);
+  addTwoByteInstruction(ADD, 0b00001010, 0, 0);
+  addOneByteInstruction(OUT, 0);
+  addOneByteInstruction(HLT, 0);
+  addData(15, 0);
+  programSize = currentAddress;
+  currentAddress = 1;
+}
+
+// Loads 31, sets carry, adds 10. Output is 42.
+void loadADCTestProgram() {
+  currentAddress = 0;
+  addTwoByteInstruction(LDI, 0b00011111, 0, 0);
+  addOneByteInstruction(OUT, 0);
+  addOneByteInstruction(SEC, 0);
+  addTwoByteInstruction(ADC, 0b00001000, 0, 0);
+  addOneByteInstruction(OUT, 0);
+  addOneByteInstruction(HLT, 0);
+  addData(0b00001010, 0);
+  programSize = currentAddress;
+  currentAddress = 1;
+}
+
+// Loads 64, sets carry, subtracts 22, outputs 42
+void loadSBCTestProgram() {
+  currentAddress = 0;
+  addTwoByteInstruction(LDI, 0b01000000, 0, 0);
+  addOneByteInstruction(OUT, 0);
+  addOneByteInstruction(SEC, 0);
+  addTwoByteInstruction(SBC, 0b00001000, 0, 0);
+  addOneByteInstruction(OUT, 0);
+  addOneByteInstruction(HLT, 0);
+  addData(0b00010110, 0);
+  programSize = currentAddress;
+  currentAddress = 1;
+}
+
+// Adds two 16-bit integers.
+// 0x11CC + 0x22BB = 0x3487  (hex) 
+// lo byte result stored at address 24, hi at 25
+// Outputs the lo byte (135 dec) then the hi byte (52 dec)
+void load16bitADCProgram() {
+  currentAddress = 0;
+  addOneByteInstruction(CLC, 0);        // A: 0
+  addTwoByteInstruction(LDA, 20, 0, 0); // A: 1,2
+  addTwoByteInstruction(ADC, 22, 0, 0); // A: 3,4
+  addTwoByteInstruction(STA, 24, 0, 0); // A: 5,6
+  addTwoByteInstruction(LDA, 21, 0, 0); // A: 7,8
+  addTwoByteInstruction(ADC, 23, 0, 0); // A: 9,10
+  addTwoByteInstruction(STA, 25, 0, 0); // A: 11,12
+  addTwoByteInstruction(LDA, 24, 0, 0); // A: 13,14
+  addOneByteInstruction(OUT, 0);        // A: 15
+  addTwoByteInstruction(LDA, 25, 0, 0);  // A: 16,17
+  addOneByteInstruction(OUT, 0);        // A: 18
+  addOneByteInstruction(HLT, 0);        // A: 19
+  addData(0xCC, 0);                     // A: 20 lo byte of first argument
+  addData(0x11, 0);                     // A: 21 hi byte of first argument
+  addData(0xBB, 0);                     // A: 22 lo byte of second argument
+  addData(0x22, 0);                     // A: 23 hi byte of second argument
+  programSize = currentAddress;
+  currentAddress = 1;
+}
+
+// Subtracts two 16-bit integers.
+// 0xFFDD - 0xCCBB = 0x3322  (hex) 
+// lo byte result stored at address 24, hi at 25
+// Outputs the lo byte (34 dec) then the hi byte (51 dec)
+void load16bitSBCProgram() {
+  currentAddress = 0;
+  addOneByteInstruction(SEC, 0);        // A: 0
+  addTwoByteInstruction(LDA, 20, 0, 0); // A: 1,2
+  addTwoByteInstruction(SBC, 22, 0, 0); // A: 3,4
+  addTwoByteInstruction(STA, 24, 0, 0); // A: 5,6
+  addTwoByteInstruction(LDA, 21, 0, 0); // A: 7,8
+  addTwoByteInstruction(SBC, 23, 0, 0); // A: 9,10
+  addTwoByteInstruction(STA, 25, 0, 0); // A: 11,12
+  addTwoByteInstruction(LDA, 24, 0, 0); // A: 13,14
+  addOneByteInstruction(OUT, 0);        // A: 15
+  addTwoByteInstruction(LDA, 25, 0, 0);  // A: 16,17
+  addOneByteInstruction(OUT, 0);        // A: 18
+  addOneByteInstruction(HLT, 0);        // A: 19
+  addData(0xDD, 0);                     // A: 20 lo byte of first argument
+  addData(0xFF, 0);                     // A: 21 hi byte of first argument
+  addData(0xBB, 0);                     // A: 22 lo byte of second argument
+  addData(0xCC, 0);                     // A: 23 hi byte of second argument
   programSize = currentAddress;
   currentAddress = 1;
 }
@@ -274,10 +389,17 @@ void setup() {
   Serial.begin(57600);
   Serial.println("Started");
 
-  initializeCountProgram();
-  //initializeMultiplyProgram();
-  Serial.println("Program size: ");
-  Serial.println(programSize);
+  loadCountProgram();
+  //loadMultiplyProgram();
+  //loadSUBADDTestProgram();
+  //loadDECINCTestProgram();
+  //loadADCTestProgram();
+  //loadSBCTestProgram();
+  //load16bitADCProgram();
+  //load16bitSBCProgram();
+  Serial.print("Program size: ");
+  Serial.print(programSize);
+  Serial.println(" bytes, code:");
 
   for(int i = 0; i < programSize; ++i) {
     char buf[45];

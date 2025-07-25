@@ -1,3 +1,4 @@
 segment-rom.bin
 control-words-rom.bin
+control-words-rom-word0.bin
 instructions.csv
