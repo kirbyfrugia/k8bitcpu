@@ -1,14 +1,15 @@
 // Purpose: to assemble, load, and execute a program on the ben eater 8-bit cpu via an Arduino instead of dip switches.
+//   Not really worth it unless you have 256 bytes of ram, but if you have a long program it can help.
 //
 // WARNING: I updated my roms to have 5 bits for the instruction, which deviates from Ben Eater's. So
 //          you will need to modify accordingly. I also use the 5 lsb on the instruction register
 //          instead of the 4 msb.
 //
-// Not really worth it unless you have 256 bytes of ram, but if you have a long program it can help.
 //
 // Getting started:
 //   Add a PRG opcode 01011. You can use a different one, but that's the one I used.
-//   Wire up the Arduino. See the pins listed below (opcode pins, step pins, data pins, inverted clock)
+//   Wire up the Arduino. See the pins listed below (vcc/gnd, opcode pins, step pins, data pins, inverted clock)
+//     Wire up an 8-bit dip switch to two 74ls157s on the B input. Wire the opcode and step pins to the A input.
 //   Put your CPU in program mode by programming opcode 1011 at address zero on your CPU.
 //   If your rom looks different than mine, adjust the #defines below
 //
@@ -26,7 +27,7 @@
 //     overwriting PRG until it has done everything else. Then it writes address zero and jmps there.
 //   So all you really need to do is write your program here, put your cpu in PRG mode, and go.
 //
-// How to write a program for your CPU (see examples below, e.g. loadCountProgram):
+// How to write a program for your CPU
 //   Call addTwoByteInstruction() for every two byte instruction if you upgraded to 256 bytes, e.g. LDA
 //   Call addOneByteInstruction() for every one byte instruction.
 //   Call addData() for every raw byte of data you want to write.
@@ -34,7 +35,9 @@
 //
 // How to run:
 //   * In this code:
-//     * In setup() call the appropriate loadXYZProgram that you want to program on your cpu
+//     * Write your programs, and assign it an id. This will correspond to what
+//       you set on the dip switch. In setup, add to the long if-else blocks.
+//   * On the arduino, select the program via the dip switch.
 //   * On your cpu:
 //     * Manually program opcode PRG at memory location zero.
 //     * Reset the arduino
@@ -46,11 +49,13 @@
 //   after each byte of the  instruction is written to RAM on your cpu. So, for example, the multiply
 //   program below will jump to byte 13, which is a HLT in the program instead of starting at the beginning.
 
-const char OPCODE_PINS[] = { 31,33,35,37,39};
-const char STEP_PINS[] = {41,43,45};
-const char DATA_PINS[] = {30,32,34,36,38,40,42,44}; // D7 to D0
+const char PROG_PINS[]   = {A4,A3,A2,A1,A0,A5,12,11}; // same pins as opcode and step
+const char OPCODE_PINS[] = {A4,A3,A2,A1,A0};
+const char STEP_PINS[]   = {A5,12,11};
+const char DATA_PINS[]   = {10,9,8,7,6,5,4,3}; // D7 to D0
 
-#define INVERTED_CLOCK 3
+#define INVERTED_CLOCK 2
+#define INPUT_SELECT_PIN 13
 
 uint8_t opcode[5];
 uint8_t steps[3];
@@ -120,6 +125,16 @@ void writeData(uint8_t step, uint8_t theData) {
   Serial.println(buf);
 }
 
+int readProgram() {
+  int program = 0;
+  for (int i = 0; i < 8; ++i) {
+    program = (program << 1) | digitalRead(PROG_PINS[i]);
+  }
+  Serial.print(F("Read Program ID: "));
+  Serial.println(program);
+  return program;
+}
+
 void readInstruction() {
   //delayMicroseconds(5);
   int opcodeR = 0;
@@ -157,14 +172,14 @@ void decodeInstruction() {
   // If we finish overwriting PRG with our program's first byte,
   // then we're done
   if (currentAddress == 0 && stepRead == 4) {
-    Serial.println("Finished programming");
+    Serial.println(F("Finished programming"));
     done = true;
     return;
   }
 
   // If we got to the end of the program, now send the first instruction to overwrite PRG and execute
   if (currentAddress == programSize) {
-    Serial.println("Programmed last instruction, now programming first");
+    Serial.println(F("Programmed last instruction, now programming first"));
     currentAddress = 0;
     return;
   }
@@ -216,8 +231,9 @@ void addData(uint8_t rawData, uint8_t jump) {
 }
 
 // Multiplies two numbers, stored at 25,26.
-// Result is at 24. Result is outputted
+// Result is at 42. Result is outputted
 void loadMultiplyProgram() {
+  Serial.println(F("Loading multiplyProgram"));
   currentAddress = 0;
   addTwoByteInstruction(LDI, 0b00000000, 13, 0); // jump straight to halt as debug
   addTwoByteInstruction(STA, 0b00011001, 0, 0);
@@ -241,6 +257,7 @@ void loadMultiplyProgram() {
 }
 
 void loadCountProgram() {
+  Serial.println(F("Loading countProgram"));
   currentAddress = 0;
   addOneByteInstruction(OUT, 0);
   addTwoByteInstruction(ADI, 0b00000001, 0, 0);
@@ -255,6 +272,7 @@ void loadCountProgram() {
 }
 
 void loadSimpleProgram() {
+  Serial.println(F("Loading simpleProgram"));
   currentAddress = 0;
   addTwoByteInstruction(LDI, 0b00101010, 0, 0);
   addOneByteInstruction(OUT, 0);
@@ -264,6 +282,7 @@ void loadSimpleProgram() {
 }
 
 void loadDECINCTestProgram() {
+  Serial.println(F("Loading DECINCProgram"));
   currentAddress = 0;
   addTwoByteInstruction(LDI, 0b00101010, 0, 0);
   addOneByteInstruction(OUT, 0);
@@ -278,43 +297,46 @@ void loadDECINCTestProgram() {
 
 // Loads 42, subtracts 15 and displays it. Then adds 15.
 void loadSUBADDTestProgram() {
+  Serial.println(F("Loading SUBADDProgram"));
   currentAddress = 0;
-  addTwoByteInstruction(LDI, 0b00101010, 0, 0);
-  addOneByteInstruction(OUT, 0);
-  addTwoByteInstruction(SUB, 0b00001010, 0, 0);
-  addOneByteInstruction(OUT, 0);
-  addTwoByteInstruction(ADD, 0b00001010, 0, 0);
-  addOneByteInstruction(OUT, 0);
-  addOneByteInstruction(HLT, 0);
-  addData(15, 0);
+  addTwoByteInstruction(LDI, 0b00101010, 0, 0); // A:0,1
+  addOneByteInstruction(OUT, 0);                // A:2
+  addTwoByteInstruction(SUB, 0b00001010, 0, 0); // A:3,4
+  addOneByteInstruction(OUT, 0);                // A:5
+  addTwoByteInstruction(ADD, 0b00001010, 0, 0); // A:6,7
+  addOneByteInstruction(OUT, 0);                // A:8
+  addOneByteInstruction(HLT, 0);                // A:9
+  addData(15, 0);                               // A:10
   programSize = currentAddress;
   currentAddress = 1;
 }
 
 // Loads 31, sets carry, adds 10. Output is 42.
-void loadADCTestProgram() {
+void load8bitADCProgram() {
+  Serial.println(F("Loading 8bitADCProgram"));
   currentAddress = 0;
-  addTwoByteInstruction(LDI, 0b00011111, 0, 0);
-  addOneByteInstruction(OUT, 0);
-  addOneByteInstruction(SEC, 0);
-  addTwoByteInstruction(ADC, 0b00001000, 0, 0);
-  addOneByteInstruction(OUT, 0);
-  addOneByteInstruction(HLT, 0);
-  addData(0b00001010, 0);
+  addTwoByteInstruction(LDI, 0b00011111, 0, 0); // A: 0,1
+  addOneByteInstruction(OUT, 0);                // A: 2
+  addOneByteInstruction(SEC, 0);                // A: 3
+  addTwoByteInstruction(ADC, 0b00001000, 0, 0); // A: 4,5
+  addOneByteInstruction(OUT, 0);                // A: 6
+  addOneByteInstruction(HLT, 0);                // A: 7
+  addData(0b00001010, 0);                       // A: 8
   programSize = currentAddress;
   currentAddress = 1;
 }
 
 // Loads 64, sets carry, subtracts 22, outputs 42
-void loadSBCTestProgram() {
+void load8bitSBCProgram() {
+  Serial.println(F("Loading 8bitSBCProgram"));
   currentAddress = 0;
-  addTwoByteInstruction(LDI, 0b01000000, 0, 0);
-  addOneByteInstruction(OUT, 0);
-  addOneByteInstruction(SEC, 0);
-  addTwoByteInstruction(SBC, 0b00001000, 0, 0);
-  addOneByteInstruction(OUT, 0);
-  addOneByteInstruction(HLT, 0);
-  addData(0b00010110, 0);
+  addTwoByteInstruction(LDI, 0b01000000, 0, 0); // A: 0,1
+  addOneByteInstruction(OUT, 0);                // A: 2
+  addOneByteInstruction(SEC, 0);                // A: 3
+  addTwoByteInstruction(SBC, 0b00001000, 0, 0); // A: 4,5
+  addOneByteInstruction(OUT, 0);                // A: 6
+  addOneByteInstruction(HLT, 0);                // A: 7
+  addData(0b00010110, 0);                       // A: 8
   programSize = currentAddress;
   currentAddress = 1;
 }
@@ -324,6 +346,7 @@ void loadSBCTestProgram() {
 // lo byte result stored at address 24, hi at 25
 // Outputs the lo byte (135 dec) then the hi byte (52 dec)
 void load16bitADCProgram() {
+  Serial.println(F("Loading 16bitADCProgram"));
   currentAddress = 0;
   addOneByteInstruction(CLC, 0);        // A: 0
   addTwoByteInstruction(LDA, 20, 0, 0); // A: 1,2
@@ -341,6 +364,7 @@ void load16bitADCProgram() {
   addData(0x11, 0);                     // A: 21 hi byte of first argument
   addData(0xBB, 0);                     // A: 22 lo byte of second argument
   addData(0x22, 0);                     // A: 23 hi byte of second argument
+                                        // A: 24,25 lo/hi of result
   programSize = currentAddress;
   currentAddress = 1;
 }
@@ -350,6 +374,7 @@ void load16bitADCProgram() {
 // lo byte result stored at address 24, hi at 25
 // Outputs the lo byte (34 dec) then the hi byte (51 dec)
 void load16bitSBCProgram() {
+  Serial.println(F("Loading 16bitSBCProgram"));
   currentAddress = 0;
   addOneByteInstruction(SEC, 0);        // A: 0
   addTwoByteInstruction(LDA, 20, 0, 0); // A: 1,2
@@ -367,6 +392,7 @@ void load16bitSBCProgram() {
   addData(0xFF, 0);                     // A: 21 hi byte of first argument
   addData(0xBB, 0);                     // A: 22 lo byte of second argument
   addData(0xCC, 0);                     // A: 23 hi byte of second argument
+                                        // A: 24,25 lo/hi of result
   programSize = currentAddress;
   currentAddress = 1;
 }
@@ -387,19 +413,39 @@ void floatDataPins() {
 
 void setup() {
   Serial.begin(57600);
-  Serial.println("Started");
+  Serial.println(F("Started"));
 
-  loadCountProgram();
-  //loadMultiplyProgram();
-  //loadSUBADDTestProgram();
-  //loadDECINCTestProgram();
-  //loadADCTestProgram();
-  //loadSBCTestProgram();
-  //load16bitADCProgram();
-  //load16bitSBCProgram();
-  Serial.print("Program size: ");
+  for (int i = 0; i < 5; ++i) {
+    pinMode(OPCODE_PINS[i], INPUT);
+  }
+  for (int i = 0; i < 3; ++i) {
+    pinMode(STEP_PINS[i], INPUT);
+  }
+
+  // Let's first read in the program to load, so set
+  // inputs to the dip switch that selects the program
+  pinMode(INPUT_SELECT_PIN, OUTPUT);
+  digitalWrite(INPUT_SELECT_PIN, HIGH); // set the 47LS157's to select B input (dip switches)
+
+  int program = readProgram();
+
+  if (program == 0) loadSimpleProgram();
+  else if (program == 1) loadCountProgram();
+  else if (program == 2) loadMultiplyProgram();
+  else if (program == 3) loadSUBADDTestProgram();
+  else if (program == 4) loadDECINCTestProgram();
+  else if (program == 5) load8bitADCProgram();
+  else if (program == 6) load8bitSBCProgram();
+  else if (program == 7) load16bitADCProgram();
+  else if (program == 8) load16bitSBCProgram();
+  else loadSimpleProgram();
+  
+  Serial.print(F("Program size: "));
   Serial.print(programSize);
-  Serial.println(" bytes, code:");
+  Serial.println(F(" bytes, code:"));
+
+  // Now switch the inputs to be coming from the 8 bit cpu
+  digitalWrite(INPUT_SELECT_PIN, LOW); // set the 47LS157's to select A input (dip switches)
 
   for(int i = 0; i < programSize; ++i) {
     char buf[45];
@@ -407,29 +453,12 @@ void setup() {
     uint8_t progData = programData[i][1];
     byteToBitsInBuf(progData, buf+5);
 
-    char * opcodeBuf = buf+14;
     // If this is an opcode, print the opcode
     if(programData[i][3] == 1 && progData < 32) {
-      sprintf(opcodeBuf, "(%s)", opcodeMnemonics[progData]);
+      sprintf(buf+14, "(%s)", opcodeMnemonics[progData]);
     }
-    // for (int j = 0; j < 8; ++j) {
-    //   Serial.print("progData: ");
-    //   Serial.println(progData);
-    //   Serial.print("progData & (7 - j): ");
-    //   Serial.println(progData & (7 - j));
-    //   char theChar = (char)(48+((progData & (7 - j)) >> (7 - j)));
-    //   Serial.print("char: ");
-    //   Serial.println(theChar);
-    //   buf[j+6] = theChar;
-    // }
-    Serial.println(buf);
-  }
 
-  for (int i = 0; i < 5; ++i) {
-    pinMode(OPCODE_PINS[i], INPUT);
-  }
-  for (int i = 0; i < 3; ++i) {
-    pinMode(STEP_PINS[i], INPUT);
+    Serial.println(buf);
   }
 
   floatDataPins();
